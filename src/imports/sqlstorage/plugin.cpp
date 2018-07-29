@@ -468,7 +468,22 @@ static ReturnedValue qmlsqldatabase_transaction_shared(const FunctionObject *b, 
     *w->d()->version = *r->d()->version;
     w->d()->readonly = readOnly;
 
-    db.transaction();
+    if (!db.isOpen() && !db.open()) { // try reopen database
+        V4THROW_SQL(SQLEXCEPTION_DATABASE_ERR, QQmlEngine::tr("transaction: %1").arg(db.lastError().text()));
+    }
+
+    if (!db.transaction()) {
+        bool error = true;
+        const QString errorText = db.lastError().text();
+        if (!db.isOpen() && db.open()) { // try reopen database
+            error = !db.transaction(); // try open transaction
+        }
+
+        if (error) {
+            V4THROW_SQL(SQLEXCEPTION_DATABASE_ERR, QQmlEngine::tr("transaction: %1").arg(errorText));
+        }
+    }
+
     if (callback) {
         JSCallData jsCall(scope, 1);
         *jsCall->thisObject = scope.engine->globalObject;

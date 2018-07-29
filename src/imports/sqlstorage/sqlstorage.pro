@@ -3,7 +3,7 @@ TARGET  = qmlsqlstorageplugin
 TARGETPATH = QtQuick/SqlStorage
 IMPORT_VERSION = 2.$${QT_MINOR_VERSION}
 
-QT = sql qml-private core-private
+QT = sql qml-private  core-private
 
 SOURCES += plugin.cpp
 
