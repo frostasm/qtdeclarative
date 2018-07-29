@@ -92,6 +92,14 @@ QT_BEGIN_NAMESPACE
     RETURN_UNDEFINED(); \
 }
 
+namespace Key {
+const QLatin1String Driver("driver");
+const QLatin1String Databasename("databasename");
+const QLatin1String Hostname("hostname");
+const QLatin1String Port("port");
+const QLatin1String Username("username");
+const QLatin1String Password("password");
+}
 
 class QQmlSqlDatabaseData : public QV8Engine::Deletable
 {
@@ -803,6 +811,7 @@ void QQuickSqlStorage::openDatabaseSync(QQmlV4Function *args)
                 database = QSqlDatabase::addDatabase(driverQSqlite, dbid);
                 database.setDatabaseName(basename + QLatin1String(".sqlite"));
             } else {
+                // parse connectionString
                 QMap<QString, QString> dbparams;
                 const QStringList paramsList = dbconnectionString.split(';');
                 for (const QString &param: paramsList) {
@@ -810,44 +819,49 @@ void QQuickSqlStorage::openDatabaseSync(QQmlV4Function *args)
                     if (keyValue.count() == 2) {
                         dbparams[keyValue[0].toLower()] = keyValue[1];
                     } else if (!keyValue.isEmpty()) {
-                        V4THROW_SQL2(SQLEXCEPTION_DATABASE_ERR, QQmlEngine::tr("Connections string is incorrect, param: %1").arg(param));
+                        V4THROW_SQL2(SQLEXCEPTION_DATABASE_ERR, QQmlEngine::tr("Connection string: incorrect param \"%1\"").arg(param));
                     }
                 }
 
-                const QString driver = dbparams[QLatin1String("driver")];
+                const QString driver = dbparams[Key::Driver];
                 if (driver.isEmpty()) {
-                    V4THROW_SQL2(SQLEXCEPTION_DATABASE_ERR, QQmlEngine::tr("Connections string: missing \"driver\" param"));
+                    V4THROW_SQL2(SQLEXCEPTION_DATABASE_ERR, QQmlEngine::tr("Connection string: missing \"driver\" param"));
                 } else {
                     database = QSqlDatabase::addDatabase(driver, dbid);
                 }
 
-                QString databaseName = dbparams[QLatin1String("databasename")];
-                if (driver.compare(driverQSqlite, Qt::CaseInsensitive) == 0) {
-                    databaseName = basename + ".sqlite";
-                }
-                if (!databaseName.isEmpty()) {
-                    database.setDatabaseName(databaseName);
+                const QString dbName = driver.compare(driverQSqlite, Qt::CaseInsensitive) == 0 ? basename + ".sqlite"
+                                                                                               : dbparams[Key::Databasename];
+                database.setDatabaseName(dbName);
+                database.setHostName(dbparams[Key::Hostname]);
+                database.setPort(dbparams.contains(Key::Port) ? dbparams[Key::Port].toInt() : database.port());
+                database.setUserName(dbparams[Key::Username]);
+                database.setPassword(dbparams[Key::Password]);
+
+                dbparams.remove(Key::Driver);
+                dbparams.remove(Key::Databasename);
+                dbparams.remove(Key::Hostname);
+                dbparams.remove(Key::Port);
+                dbparams.remove(Key::Username);
+                dbparams.remove(Key::Password);
+
+                QStringList connectOptions;
+                const QStringList keys = dbparams.keys();
+                for (const QString &key: keys) {
+                    connectOptions.append(QString("%1=%2").arg(key).arg(dbparams[key]));
                 }
 
-                if (dbparams.contains(QLatin1String("hostname"))) {
-                    database.setHostName(dbparams[QLatin1String("hostname")]);
-                }
-                if (dbparams.contains(QLatin1String("port"))) {
-                    database.setPort(dbparams[QLatin1String("port")].toInt());
-                }
-                if (dbparams.contains(QLatin1String("username"))) {
-                    database.setUserName(dbparams[QLatin1String("username")]);
-                }
-                if (dbparams.contains(QLatin1String("password"))) {
-                    database.setPassword(dbparams[QLatin1String("password")]);
-                }
+                database.setConnectOptions(connectOptions.join(';'));
             }
         }
 
+
+        if (!QSqlDatabase::drivers().contains(database.driverName())) {
+            V4THROW_SQL2(SQLEXCEPTION_DATABASE_ERR, QQmlEngine::tr("Invalid connection's driver \"%1\"").arg(database.driverName()));
+        }
+
         if (!database.isOpen()) {
-            if (!database.open()) {
-                V4THROW_SQL2(SQLEXCEPTION_DATABASE_ERR, QQmlEngine::tr("DB: can't open database"));
-            }
+            database.open();
         }
     }
 
