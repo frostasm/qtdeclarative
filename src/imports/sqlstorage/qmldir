@@ -1,0 +1,4 @@
+module QtQuick.SqlStorage
+plugin qmlsqlstorageplugin
+classname QQmlSqlStoragePlugin
+typeinfo plugins.qmltypes

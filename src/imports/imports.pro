@@ -8,7 +8,7 @@ SUBDIRS += \
     folderlistmodel \
     models
 
-qtHaveModule(sql): SUBDIRS += localstorage
+qtHaveModule(sql): SUBDIRS += localstorage sqlstorage
 qtConfig(settings): SUBDIRS += settings
 qtConfig(statemachine): SUBDIRS += statemachine
 
